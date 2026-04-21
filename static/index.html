@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Motion Tracking Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D Visualizer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#8b5cf6',
+                        dark: '#0f172a',
+                        card: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            border-radius: 16px;
+        }
+        .vol-bar-container {
+            width: 100%;
+            height: 24px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+        .vol-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: width 0.1s ease-out;
+        }
+        /* Custom range slider */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+        /* Dashboard scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center">
+
+    <div class="max-w-6xl w-full">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-400">
+                    Audio Motion Dashboard
+                </h1>
+                <p class="text-gray-400 text-sm mt-1">Direct COM Port Tracker & Equal Power Spatializer</p>
+            </div>
+            <div id="connection-status" class="flex items-center gap-2 bg-red-500/20 text-red-400 px-4 py-2 rounded-full border border-red-500/30 font-medium text-sm transition-all duration-300">
+                <i class="fas fa-circle text-[10px]"></i>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column: Visualizers -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Real-time Tracking Visualizer -->
+                <div class="glass-card p-6 flex flex-col md:flex-row items-center gap-8 justify-around">
+                    <div class="flex flex-col items-center relative w-full md:w-auto">
+                        <div class="flex justify-between items-center w-full mb-4">
+                            <h2 class="text-gray-400 text-sm uppercase tracking-wider font-semibold">Head Tracker</h2>
+                            <button id="recalibrate-btn" class="text-xs bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 hover:text-white px-3 py-1 rounded-full border border-indigo-500/30 transition shadow-lg shrink-0 ml-4 group">
+                                <i class="fas fa-crosshairs group-hover:rotate-90 transition duration-300"></i> Calibrate
+                            </button>
+                        </div>
+                        <div class="relative w-40 h-40 flex items-center justify-center border-2 border-dashed border-gray-600 rounded-full overflow-hidden shrink-0 mt-2">
+                            <!-- ThreeJS Canvas will mount here -->
+                            <div id="three-container" class="absolute inset-0"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 w-full space-y-4">
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-300"><i class="fas fa-arrows-up-down mr-2"></i>Pitch (Master Vol)</span>
+                                <span id="pitch-val" class="font-mono text-primary font-bold">0.0°</span>
+                            </div>
+                            <div class="vol-bar-container"><div id="pitch-bar" class="vol-bar-fill bg-gradient-to-r from-blue-500 to-cyan-400" style="width: 50%;"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-300"><i class="fas fa-arrows-left-right mr-2"></i>Roll (Pan)</span>
+                                <span id="roll-val" class="font-mono text-secondary font-bold">0.0°</span>
+                            </div>
+                            <div class="vol-bar-container"><div id="roll-bar" class="vol-bar-fill bg-gradient-to-r from-purple-500 to-pink-500" style="width: 50%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows Audio System Output Card -->
+                <div class="glass-card p-6">
+                    <h2 class="text-gray-400 text-sm uppercase tracking-wider font-semibold mb-6"><i class="fas fa-volume-up mr-2"></i>System Audio Output</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Master Volume -->
+                        <div class="bg-dark/50 rounded-xl p-4 border border-white/5 text-center">
+                            <span class="block text-xs text-gray-500 uppercase mb-2">Master Volume</span>
+                            <span id="master-vol-read" class="block text-3xl font-light">0%</span>
+                        </div>
+                        <!-- Left Ear -->
+                        <div class="bg-dark/50 rounded-xl p-4 border border-white/5 text-center">
+                            <span class="block text-xs text-gray-500 uppercase mb-2">Left Channel</span>
+                            <span id="left-vol-read" class="block text-3xl font-light text-blue-400">100%</span>
+                        </div>
+                        <!-- Right Ear -->
+                        <div class="bg-dark/50 rounded-xl p-4 border border-white/5 text-center">
+                            <span class="block text-xs text-gray-500 uppercase mb-2">Right Channel</span>
+                            <span id="right-vol-read" class="block text-3xl font-light text-pink-400">100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Controls -->
+            <div class="glass-card p-6 flex flex-col h-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-gray-400 text-sm uppercase tracking-wider font-semibold"><i class="fas fa-sliders-h mr-2"></i>Configuration</h2>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="audio-enable-toggle" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                </div>
+
+                <div class="space-y-6 flex-1">
+                    <!-- COM Port -->
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">COM Port</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="com-port-input" class="w-full bg-dark/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition" value="COM3">
+                            <button id="save-com-btn" class="bg-primary hover:bg-indigo-600 px-4 py-2 rounded-lg text-sm transition"><i class="fas fa-save"></i></button>
+                        </div>
+                    </div>
+
+                    <hr class="border-white/10">
+
+                    <!-- Sensitivity Constraints -->
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-400 mb-1" title="How far you must look down to reach Peak Volume.">
+                                <span><i class="fas fa-info-circle text-gray-600 mr-1"></i> Pitch Sensitivity</span>
+                                <span id="pitch-max-lbl">20°</span>
+                            </div>
+                            <input type="range" id="pitch-max-slide" min="5" max="90" value="20" class="w-full">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-400 mb-1" title="How far you must tilt your head to pan the audio 100% to one ear.">
+                                <span><i class="fas fa-info-circle text-gray-600 mr-1"></i> Roll Sensitivity</span>
+                                <span id="roll-max-lbl">35°</span>
+                            </div>
+                            <input type="range" id="roll-max-slide" min="5" max="90" value="35" class="w-full">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-400 mb-1 text-primary font-medium" title="Absolutely caps the Windows Master Volume so it never gets too loud when looking down.">
+                                <span><i class="fas fa-volume-up mr-1"></i> Peak Volume Limit</span>
+                                <span id="max-system-volume-lbl">50%</span>
+                            </div>
+                            <input type="range" id="max-system-volume-slide" min="5" max="100" value="50" class="w-full">
+                        </div>
+                    </div>
+
+                    <hr class="border-white/10">
+
+                    <!-- Deadzones -->
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-400 mb-1" title="Minor up/down movements to ignore completely.">
+                                <span><i class="fas fa-info-circle text-gray-600 mr-1"></i> Pitch Deadzone</span>
+                                <span id="pitch-deadzone-lbl">2°</span>
+                            </div>
+                            <input type="range" id="pitch-deadzone-slide" min="0" max="15" step="0.5" value="2" class="w-full text-blue-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-400 mb-1" title="Minor left/right tilts to ignore completely to keep audio perfectly centered.">
+                                <span><i class="fas fa-info-circle text-gray-600 mr-1"></i> Roll Deadzone</span>
+                                <span id="roll-deadzone-lbl">5°</span>
+                            </div>
+                            <input type="range" id="roll-deadzone-slide" min="0" max="15" step="0.5" value="5" class="w-full">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

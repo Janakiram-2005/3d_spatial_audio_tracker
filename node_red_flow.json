@@ -1,0 +1,342 @@
+[
+    {
+        "id": "flow_1",
+        "type": "tab",
+        "label": "MPU6050 Audio Controller",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "mqtt_broker",
+        "type": "mqtt-broker",
+        "name": "Local MQTT",
+        "broker": "127.0.0.1",
+        "port": "1883",
+        "clientid": "NodeRED_Audio",
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "dashboard_group",
+        "type": "ui_group",
+        "name": "Orientation",
+        "tab": "dashboard_tab",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "dashboard_group_controls",
+        "type": "ui_group",
+        "name": "Controls",
+        "tab": "dashboard_tab",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "dashboard_tab",
+        "type": "ui_tab",
+        "name": "Head Tracking",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "f1_mqtt_in",
+        "type": "mqtt in",
+        "z": "flow_1",
+        "name": "ESP32 Raw Data",
+        "topic": "sensor/raw_orientation",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "x": 160,
+        "y": 140,
+        "wires": [
+            [
+                "f1_processor",
+                "f1_split_pitch",
+                "f1_split_roll"
+            ]
+        ]
+    },
+    {
+        "id": "f1_split_pitch",
+        "type": "function",
+        "z": "flow_1",
+        "name": "Extract Pitch",
+        "func": "msg.payload = msg.payload.pitch;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 410,
+        "y": 80,
+        "wires": [
+            [
+                "f1_gauge_pitch",
+                "f1_chart"
+            ]
+        ]
+    },
+    {
+        "id": "f1_split_roll",
+        "type": "function",
+        "z": "flow_1",
+        "name": "Extract Roll",
+        "func": "msg.payload = msg.payload.roll;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 410,
+        "y": 140,
+        "wires": [
+            [
+                "f1_gauge_roll",
+                "f1_chart"
+            ]
+        ]
+    },
+    {
+        "id": "f1_gauge_pitch",
+        "type": "ui_gauge",
+        "z": "flow_1",
+        "name": "Pitch Gauge",
+        "group": "dashboard_group",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Pitch (Up/Down)",
+        "label": "degrees",
+        "format": "{{value}}",
+        "min": "-45",
+        "max": "45",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "x": 630,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "f1_gauge_roll",
+        "type": "ui_gauge",
+        "z": "flow_1",
+        "name": "Roll Gauge",
+        "group": "dashboard_group",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Roll (Left/Right)",
+        "label": "degrees",
+        "format": "{{value}}",
+        "min": "-45",
+        "max": "45",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "x": 630,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "f1_chart",
+        "type": "ui_chart",
+        "z": "flow_1",
+        "name": "History Chart",
+        "group": "dashboard_group",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "label": "Movement History",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "-45",
+        "ymax": "45",
+        "removeOlder": 1,
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "useOldStyle": false,
+        "outputs": 1,
+        "x": 640,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f1_processor",
+        "type": "function",
+        "z": "flow_1",
+        "name": "Process & Smooth (Mode Logic)",
+        "func": "let state = flow.get('mode') || 'standard';\nlet raw = msg.payload;\n\n// Basic Smoothing Filter (Rolling Average)\nlet lastPitch = flow.get('lastPitch') || raw.pitch;\nlet lastRoll = flow.get('lastRoll') || raw.roll;\n\nlet alpha = 0.3; // Smoothing factor (0.0 to 1.0, lower is smoother)\nlet pitch = (alpha * raw.pitch) + ((1 - alpha) * lastPitch);\nlet roll = (alpha * raw.roll) + ((1 - alpha) * lastRoll);\n\nflow.set('lastPitch', pitch);\nflow.set('lastRoll', roll);\n\nlet out = { \n    pitch: pitch,\n    roll: roll,\n    pitch_min: -20.0,\n    pitch_max: 20.0,\n    roll_threshold: 5.0,\n    roll_max: 35.0\n};\n\n// Mode Multipliers\nif (state === 'gaming') {\n    // Gaming Mode: Hyper sensitive\n    out.pitch_min = -10.0; \n    out.pitch_max = 10.0;\n    out.roll_threshold = 2.0;\n    out.roll_max = 20.0;\n} else if (state === 'movie') {\n    // Movie Mode: Very loose, large deadzones\n    out.pitch_min = -30.0; \n    out.pitch_max = 30.0;\n    out.roll_threshold = 15.0;\n    out.roll_max = 45.0;\n}\n\nmsg.payload = out;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 240,
+        "wires": [
+            [
+                "f1_mqtt_out_python"
+            ]
+        ]
+    },
+    {
+        "id": "f1_mqtt_out_python",
+        "type": "mqtt out",
+        "z": "flow_1",
+        "name": "Send to Python",
+        "topic": "audio/processed_orientation",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker",
+        "x": 780,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "f1_btn_recalibrate",
+        "type": "ui_button",
+        "z": "flow_1",
+        "name": "Recalibrate Origin",
+        "group": "dashboard_group_controls",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Recalibrate to Center",
+        "tooltip": "",
+        "color": "#ffffff",
+        "bgcolor": "#ff3333",
+        "icon": "",
+        "payload": "recalibrate",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 190,
+        "y": 340,
+        "wires": [
+            [
+                "f1_mqtt_out_esp"
+            ]
+        ]
+    },
+    {
+        "id": "f1_mqtt_out_esp",
+        "type": "mqtt out",
+        "z": "flow_1",
+        "name": "Send Command to ESP32",
+        "topic": "cmd/recalibrate",
+        "qos": "0",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker",
+        "x": 470,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "f1_mode_switch",
+        "type": "ui_dropdown",
+        "z": "flow_1",
+        "name": "Profile Mode",
+        "label": "Profile Mode",
+        "tooltip": "",
+        "place": "Select Profile",
+        "group": "dashboard_group_controls",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "passthru": true,
+        "multiple": false,
+        "options": [
+            {
+                "label": "Standard Mode",
+                "value": "standard",
+                "type": "str"
+            },
+            {
+                "label": "Gaming Mode (High Sens)",
+                "value": "gaming",
+                "type": "str"
+            },
+            {
+                "label": "Movie Mode (Low Sens)",
+                "value": "movie",
+                "type": "str"
+            }
+        ],
+        "payload": "",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 170,
+        "y": 420,
+        "wires": [
+            [
+                "f1_set_mode"
+            ]
+        ]
+    },
+    {
+        "id": "f1_set_mode",
+        "type": "function",
+        "z": "flow_1",
+        "name": "Set Global Mode",
+        "func": "flow.set('mode', msg.payload);\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 420,
+        "wires": [
+            []
+        ]
+    }
+]

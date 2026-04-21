@@ -1,0 +1,29 @@
+# Install all dependencies with:
+#   pip install -r requirements.txt
+
+# Serial communication with ESP32/Arduino
+pyserial==3.5
+
+# Core audio engine (Open-Source HRTF spatial audio)
+PyOpenAL==0.7.11a1
+
+# Game/Input window & keyboard handling (Head Simulator UI)
+pygame==2.6.1
+
+# Math library (orientation calculations, sine waves, etc.)
+numpy==2.2.6
+
+# Global keyboard hook (background Arrow key capture for System Panner)
+pynput==1.8.1
+
+# Windows Audio Session API (system-wide volume/balance control)
+pycaw==20251023
+
+# Windows COM interface (required by pycaw)
+comtypes==1.4.14
+
+# Web Dashboard dependencies (FastAPI, WebSockets Server)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+websockets>=11.0.3
+pydantic>=2.0.0
