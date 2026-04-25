@@ -246,4 +246,28 @@ async def startup_event():
     asyncio.create_task(broadcast_state())
 
 if __name__ == "__main__":
+    import sys
+    import serial.tools.list_ports
+    
+    print(f"Checking for microcontroller on {settings['com_port']}...")
+    ports = [port.device for port in serial.tools.list_ports.comports()]
+    
+    if settings["com_port"] not in ports:
+        print(f"\n[ERROR] Device NOT connected to {settings['com_port']}!")
+        print(f"Available COM ports: {ports if ports else 'None found'}")
+        print("Please connect the device to the correct COM port and run again.")
+        print("NOTE: You can change the default COM port in serial_server.py if needed.")
+        sys.exit(1)
+        
+    try:
+        # Quick test connection
+        s = serial.Serial(settings["com_port"], settings["baud_rate"], timeout=2)
+        s.close()
+        print(f"[SUCCESS] Microcontroller detected on {settings['com_port']}! Starting server...\n")
+    except Exception as e:
+        print(f"\n[ERROR] Could not communicate with device on {settings['com_port']}.")
+        print(f"Details: {e}")
+        print("Make sure it is NOT open in another program like the Arduino IDE Serial Monitor.")
+        sys.exit(1)
+
     uvicorn.run("serial_server:app", host="127.0.0.1", port=8000, log_level="info")
